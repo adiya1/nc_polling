@@ -1,0 +1,202 @@
+---
+title: "Study of Polling Data for 3rd wave North Carolina’s 9th Congressional District."
+author: "Adiya Abdilkhay"
+date: '04/10/2019'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, error = FALSE)
+
+# i started by copying the URL off of the github repository by clicking 'Clone or Download' and pasting it into RStudio by creating a New Project and opening Version Control
+
+# the chunk above ensures that there are no undesirable pieces of code, warnings, errors, and messages in the html output
+
+library(knitr)
+library(readxl)
+library(readr)
+library(janitor)
+library(tidyverse)
+library(ggplot2)
+library(ggridges)
+library(gt)
+library(viridis)
+library(ggthemes)
+
+# it is important to load all of the packages so that the code actually works
+
+x <- read_csv(url("https://raw.githubusercontent.com/TheUpshot/2018-live-poll-results/master/data/elections-poll-nc09-3.csv"))
+
+```
+
+#Polling Results by Race Table
+
+```{r 1}
+
+table <- x %>% 
+  
+  # i assigned the dataset x to table when working on creating a table using values from the dataset
+  
+  select(response, race_eth, final_weight) %>% 
+  
+ # i selected the variables that I would need for this table, since i am not working with everything that the dataset includes
+  
+  filter(race_eth != "[DO NOT READ] Don't know/Refused") %>% 
+  
+  # i made sure to exclude results that do not provide any information
+  
+  mutate(race_eth = fct_relevel(race_eth, "White", "Black", "Hispanic", "Asian", "Other")) %>% 
+  
+  # i had to ensure the correct ordering. in this step, it is important to spell everything out precisely because the code wont work if there is a slightest spelling mistake
+  
+   group_by(response, race_eth) %>% 
+  
+  # these are the variables that we want to look at the table
+  
+  summarize(total = sum(final_weight)) %>% 
+  
+  # i want to have a total amount, so i use sum(final_weight) to summarize that number
+  
+  spread(key =  response, value = total, fill = 0) %>% 
+  
+  # it is important to assign the variables to correct roles
+  
+  mutate(total = Dem + Rep + Und + `3`) %>% 
+  mutate(Dem = Dem / total) %>% 
+  mutate(Rep = Rep / total) %>% 
+  mutate(Und = Und / total) %>% 
+  select(-total, -`3`)
+
+# since we are looking at percentages, we first establish the total by summing all response options and mutate them into their values divided by total
+
+  gt(table) %>% 
+    
+    # remember to load gt, and then use gt to make adjustments to the table
+    
+    tab_header(
+      title = "Polling Results by Race in North Carolina's 9th Congressional District") %>% 
+    # this function lets me create a title for my table
+    
+    cols_label(
+      race_eth = "",
+      Dem = "DEM.",
+      Rep = "REP.",
+      Und = "UND."
+      ) %>%
+    
+    # here, i am assigning column names to my variables
+    
+    tab_source_note(source_note = "New York Times Upshot/Siena College 2018 live polls") %>% 
+    
+  # this creates a caption for the table
+    
+    fmt_percent(columns = vars(Dem, Rep, Und),
+                decimals = 0) %>% 
+    
+    # we want to have accurate percentages of our values
+    
+    na_if(0) %>%
+fmt_missing(columns = vars(Und), rows = 4) 
+  
+  # we want to have a dash instead of a '0%' value, so the last two code lines ensure that we get that in our table
+  
+```
+
+
+#Polling Results by Education Level Graph
+
+
+```{r graph}
+x %>%
+  
+  # i start by saying that i am working with x and then piping in the code
+  
+  select(educ, final_weight) %>% 
+  
+  # i select the variables i want to work with in this graph
+  
+  filter(educ != "[DO NOT READ] Refused") %>%
+  
+  # i make sure to exclude responses that do not provide information 
+  
+  mutate(educ = fct_relevel(educ, "Grade school", "High school", "Some college or trade school", "Bachelors' degree", "Graduate or Professional Degree")) %>% 
+  
+  # i make sure that the y values are standing in correct ordering 
+  
+  ggplot(aes(x = educ, y = final_weight)) +
+  
+  # i assign the variables to x and y axis
+  
+  geom_violin() +
+  
+  # this is what i want my graph shape to be
+  
+  geom_jitter(width = .2, size = 1.0, alpha = .5) +
+  
+  # i assign the most accurate values to the graph 
+  
+  coord_flip() +
+  
+  # i flip my coordinates 
+  
+  labs(title = 'More Educated Matter Less in North Carolina 9th',
+       subtitle = 'Poll gives more weight to people who are less likely to participate in polls',
+       caption = 'New York Times Upshot/Siena College 2018 live polls') +
+  
+  # i assign the labels, such as title, subtitle, and caption, to the graph
+  
+  ylab("Weight Given to Respondent in Calculating Poll Results") +
+  xlab(NULL)
+
+# i assign a y axis label and, since the x axis do not have one, i say that it's NULL
+
+```
+
+#Polling Results by Age Graph 
+
+
+```{r 3}
+
+x %>% 
+  select(ager, response) %>%
+  
+  # i select variables i want to observe in my individual graph. i want to observe how political preferences (Republican, Democrat, Undecided) change depending on whether an individual belongs to one of the four presented age groups
+  
+  filter(ager != "[DO NOT READ] Refused") %>%
+  
+  # i only want to look at responses that provide useful information for me to gather data from
+  
+  filter(response != "3") %>%
+  
+  # i only want to look at Rep, Dem, and Und, so i exclude third parties from my graph
+  
+  mutate(ager = fct_relevel(ager, "18 to 34", "35 to 49", "50 to 64", "65 and older")) %>%
+  mutate(response = fct_relevel(response, "Und", "Rep", "Dem")) %>%
+  
+  # i order the columns in a way i want them portrayed on the graph
+  
+  ggplot() +
+  geom_bar(mapping = aes(x = ager, fill = response)) +
+  
+  # i know that i want to use a bar chart and i use fill, so that different responses provide different color fills
+  
+  scale_fill_manual("legend", values = c("Rep" = "red", "Dem" = "blue", "Und" = "green")) +
+  
+  # i assign appropriate colors (blue for Dem, red for Rep, and green (as another basic color that is different from red and blue) for Undecided)
+  
+  labs(title = 'Polling Results Depending on Age in North Carolina 9th Congressional District',
+       subtitle = 'Poll shows political preferences of four age groups',
+       caption = 'New York Times Upshot/Siena College 2018 live polls') +
+  
+  # i assign labels to my graph to give more information about what we are looking at. it is important to provide as much information as possible, so that a person who looks at a graph can understand what it portrays without reading additional information
+  
+  ylab("Number of Respondents") +
+  xlab("Age") +
+  guides(fill=guide_legend(title="Party"))
+
+# for the most user-friendly graph, i assign labels for my x and y axis and assign a new name to my legend, so that instead of saying 'legend' it actually says 'Party', the information the color fill gives
+
+
+```
+
+
